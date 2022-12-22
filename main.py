@@ -1,15 +1,17 @@
 import asyncio
 import json
+import os.path
+
 import aiohttp
 import logging
 from pygw2.api import Api
 
 
-logger = logging.getLogger('tp-tracker')
+logger = logging.getLogger("tp-tracker")
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setFormatter(
-    logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s')
+    logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s")
 )
 logger.addHandler(handler)
 
@@ -40,25 +42,64 @@ async def send_alert(webhook_url: str, data: dict):
             logger.info(f"{webhook_url=}: {req.status}: {await req.text()}")
 
 
+async def save_history(history: dict) -> None:
+    """
+    Save history into a JSON file
+
+    :param history:
+    :return:
+    """
+    logger.debug("Saving history...")
+    with open("history.json", "w", encoding="utf-8") as history_file:
+        json.dump(history, history_file)
+
+
+async def load_history() -> dict:
+    """
+    Load history from a JSON file
+
+    :return:
+    """
+    logger.debug("Loading history...")
+    if not os.path.exists("history.json"):
+        logger.debug("Creating empty history file")
+        with open("history.json", "w", encoding="utf-8") as history_file:
+            json.dump({}, history_file)
+    with open("history.json", encoding="utf-8") as history_file:
+        history = json.load(history_file)
+
+    return history
+
+
 async def main():
     session = Api()
-    nd_history = {}
     while True:
 
         # Read config
-        with open('config.json') as config_file:
+        logger.debug("Loading config...")
+        with open("config.json", encoding="utf-8") as config_file:
             config = json.load(config_file)
 
-        if 'trackers' in config:
+        if "loglevel" in config:
+            if config["loglevel"] == "INFO":
+                logger.setLevel(logging.INFO)
+            elif config["loglevel"] == "DEBUG":
+                logger.setLevel(logging.DEBUG)
+            # TODO rest of levels
+
+        # Read history
+        nd_history = await load_history()
+
+        if "trackers" in config:
 
             # Go through different trackers
-            for tracker in config['trackers']:
-                hook_url = tracker['webhook_url']
-                items = [x['item_id'] for x in tracker['items']]
-                mentions = [x['mention'] for x in tracker['items']]
-                order_types = [x['order_type'] for x in tracker['items']]
-                lp_alert = [x['low_price_alert'] for x in tracker['items']]
-                nd_alert = [x['new_order_alert'] for x in tracker['items']]
+            for tracker in config["trackers"]:
+                hook_url = tracker["webhook_url"]
+                items = [x["item_id"] for x in tracker["items"]]
+                mentions = [x["mention"] for x in tracker["items"]]
+                order_types = [x["order_type"] for x in tracker["items"]]
+                lp_alert = [x["low_price_alert"] for x in tracker["items"]]
+                nd_alert = [x["new_order_alert"] for x in tracker["items"]]
 
                 # Get details and prices
                 item_details = await session.items.get(*items)
@@ -100,20 +141,22 @@ async def main():
                                     "title": f"{order_type.capitalize()} order low price alert for *{item_details[detail_index].name}*",
                                     "type": "rich",
                                     "description": f"{order_type.capitalize()} order price dropped to **{price_to_gw2(price_info.unit_price)}**",
-                                    "image": {
-                                        "url": item_details[detail_index].icon
-                                    },
+                                    "image": {"url": item_details[detail_index].icon},
                                     "provider": {
                                         "name": "GW2 Api",
-                                        "url": f"https://api.guildwars2.com/v2/commerce/prices?ids={price.id}&lang=en"
-                                    }
+                                        "url": f"https://api.guildwars2.com/v2/commerce/prices?ids={price.id}&lang=en",
+                                    },
                                 }
                             ],
-                            #"allowed_mentions": "users"
+                            # "allowed_mentions": "users"
                         }
                         await send_alert(hook_url, hook_data)
 
-                    if nd and (f"{price.id}-{order_type}" not in nd_history or nd_history[f"{price.id}-{order_type}"] != price_info.unit_price):
+                    if nd and (
+                        f"{price.id}-{order_type}" not in nd_history
+                        or nd_history[f"{price.id}-{order_type}"]
+                        != price_info.unit_price
+                    ):
                         hook_data = {
                             "content": mention if mention else "",
                             "embeds": [
@@ -121,23 +164,25 @@ async def main():
                                     "title": f"{order_type.capitalize()} order new price alert for *{item_details[detail_index].name}*",
                                     "type": "rich",
                                     "description": f"{order_type.capitalize()} order price changed to **{price_to_gw2(price_info.unit_price)}** from **{price_to_gw2(nd_history[f'{price.id}-{order_type}']) if f'{price.id}-{order_type}' in nd_history else '(no old price)'}**",
-                                    "image": {
-                                        "url": item_details[detail_index].icon
-                                    },
+                                    "image": {"url": item_details[detail_index].icon},
                                     "provider": {
                                         "name": "GW2 Api",
-                                        "url": f"https://api.guildwars2.com/v2/commerce/prices?ids={price.id}&lang=en"
-                                    }
+                                        "url": f"https://api.guildwars2.com/v2/commerce/prices?ids={price.id}&lang=en",
+                                    },
                                 }
                             ],
-                            #"allowed_mentions": "users"
+                            # "allowed_mentions": "users"
                         }
                         nd_history[f"{price.id}-{order_type}"] = price_info.unit_price
 
                         await send_alert(hook_url, hook_data)
 
-        await asyncio.sleep(60*5)    # Sleep 5 minutes
+        await save_history(nd_history)
+        await asyncio.sleep(config["interval"])
 
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")

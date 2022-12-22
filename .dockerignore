@@ -1,0 +1,5 @@
+*.json
+*.md
+venv/
+.gitignore
+.git/

@@ -1,0 +1,19 @@
+{
+    "loglevel": "INFO",
+    "interval": 300,
+    "trackers": [
+        {
+            "server": "[Server Name]",
+            "webhook_url": "[Discord Webhook Url]",
+            "items": [
+                {
+                    "mention": "[A mention that will be used]",
+                    "item_id": 98092,
+                    "order_type": "buy",
+                    "low_price_alert": 42000000,
+                    "new_order_alert": true
+                }
+            ]
+        }
+    ]
+}
