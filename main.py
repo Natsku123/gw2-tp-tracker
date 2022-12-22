@@ -42,30 +42,32 @@ async def send_alert(webhook_url: str, data: dict):
             logger.info(f"{webhook_url=}: {req.status}: {await req.text()}")
 
 
-async def save_history(history: dict) -> None:
+async def save_history(history: dict, history_file_path: str) -> None:
     """
     Save history into a JSON file
 
-    :param history:
+    :param history: dict
+    :param history_file_path: str
     :return:
     """
     logger.debug("Saving history...")
-    with open("history.json", "w", encoding="utf-8") as history_file:
+    with open(history_file_path, "w", encoding="utf-8") as history_file:
         json.dump(history, history_file)
 
 
-async def load_history() -> dict:
+async def load_history(history_file_path: str) -> dict:
     """
     Load history from a JSON file
 
+    :type history_file_path: str
     :return:
     """
     logger.debug("Loading history...")
-    if not os.path.exists("history.json"):
-        logger.debug("Creating empty history file")
-        with open("history.json", "w", encoding="utf-8") as history_file:
+    if not os.path.exists(history_file_path):
+        logger.debug(f"Creating empty history file: {history_file_path}")
+        with open(history_file_path, "w", encoding="utf-8") as history_file:
             json.dump({}, history_file)
-    with open("history.json", encoding="utf-8") as history_file:
+    with open(history_file_path, encoding="utf-8") as history_file:
         history = json.load(history_file)
 
     return history
@@ -73,12 +75,16 @@ async def load_history() -> dict:
 
 async def main():
     session = Api()
+    history_file_path = "/data/history.json"
     while True:
 
         # Read config
         logger.debug("Loading config...")
         with open("config.json", encoding="utf-8") as config_file:
             config = json.load(config_file)
+
+        if "history_file_path" in config:
+            history_file_path = config["history_file_path"]
 
         if "loglevel" in config:
             if config["loglevel"] == "INFO":
@@ -88,7 +94,7 @@ async def main():
             # TODO rest of levels
 
         # Read history
-        nd_history = await load_history()
+        nd_history = await load_history(history_file_path)
 
         if "trackers" in config:
 
@@ -177,11 +183,12 @@ async def main():
 
                         await send_alert(hook_url, hook_data)
 
-        await save_history(nd_history)
+        await save_history(nd_history, history_file_path)
         await asyncio.sleep(config["interval"])
 
 
 if __name__ == "__main__":
+    # TODO nicer shutdown stuff for docker
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

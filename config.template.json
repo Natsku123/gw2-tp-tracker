@@ -1,6 +1,7 @@
 {
     "loglevel": "INFO",
     "interval": 300,
+    "history_file_path": "/data/history.json",
     "trackers": [
         {
             "server": "[Server Name]",

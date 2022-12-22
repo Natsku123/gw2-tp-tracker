@@ -3,6 +3,7 @@ FROM python:3.9-slim
 LABEL maintainer="Max Mecklin <max@meckl.in>"
 
 COPY . /app
+RUN mkdir /data
 
 #COPY docker-entrypoint.sh /docker-entrypoint.sh
 #RUN ["chmod", "+x", "/docker-entrypoint.sh"]
