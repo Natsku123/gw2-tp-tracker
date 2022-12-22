@@ -1,4 +1,5 @@
 # GW2 TP Tracker
+[![Docker](https://github.com/Natsku123/gw2-tp-tracker/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Natsku123/gw2-tp-tracker/actions/workflows/docker-publish.yml)
 Guild Wars 2 Trading post tracker notifies on Discord (via Webhooks) of 
 price changes regarding tracked items.
 
